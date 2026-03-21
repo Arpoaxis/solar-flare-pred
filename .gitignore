@@ -1,0 +1,56 @@
+# PyCharm / JetBrains
+.idea/
+*.iml
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs / local env
+*.log
+.env
+.env.*
+
+# Large/raw data
+data/external/
+data/processed/
+
+# Ignore most interim outputs by default
+data/interim/*
+!data/interim/channel_timepoint_report_training.csv
+!data/interim/missing_report_training.csv
+!data/interim/sdobenchmark/
+
+# Inside sdobenchmark, keep only index + split CSVs
+data/interim/sdobenchmark/*
+!data/interim/sdobenchmark/index.parquet
+!data/interim/sdobenchmark/splits/
+
+data/interim/sdobenchmark/splits/*
+!data/interim/sdobenchmark/splits/*.csv
+
+# Experiment outputs
+runs/
+
+# Model / tensor artifacts
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.npy
+*.npz
