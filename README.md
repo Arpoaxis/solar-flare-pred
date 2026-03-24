@@ -32,10 +32,6 @@ Evaluation focuses on metrics appropriate for imbalanced event forecasting, incl
 - **Brier score**
 - calibration analysis and reliability behavior
 
-## Setup
-
-```bash
-pip install -r requirements.txt
 
 ## Repository Contents
 
@@ -53,3 +49,9 @@ pip install -r requirements.txt
 │           └── splits/
 ├── .gitignore
 └── README.md
+
+
+## Setup
+
+```bash
+pip install -r requirements.txt
