@@ -1,0 +1,5 @@
+numpy>=1.26
+pandas>=2.2
+pyarrow>=15.0
+torch>=2.0
+torchvision>=0.15
