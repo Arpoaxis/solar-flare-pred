@@ -48,10 +48,18 @@ Evaluation focuses on metrics appropriate for imbalanced event forecasting, incl
 │           ├── index.parquet
 │           └── splits/
 ├── .gitignore
-└── README.md
+├── LICENSE
+├── README.md
+└── requirements.txt
 
+```
 
+```markdown
 ## Setup
 
+Create and activate a virtual environment, then install dependencies:
+
+```
 ```bash
 pip install -r requirements.txt
+```
