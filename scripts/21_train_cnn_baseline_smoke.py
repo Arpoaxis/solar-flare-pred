@@ -42,8 +42,11 @@ SPLITS = ROOT / "data" / "interim" / "sdobenchmark" / "splits"
 TRAIN_CSV = SPLITS / "train.csv"
 VAL_CSV = SPLITS / "val.csv"
 
+RUN_NAME = "cnn_baseline_posw"
+
 CKPT_DIR = ROOT / "runs" / "checkpoints"
-LOG_PATH = ROOT / "runs" / "logs" / "cnn_baseline_log.csv"
+##LOG_PATH = ROOT / "runs" / "logs" / "cnn_baseline_log.csv"
+LOG_PATH = ROOT / "runs" / "logs" / f"{RUN_NAME}_log.csv"
 
 # Training configuration.
 EPOCHS = 3
@@ -149,6 +152,7 @@ def run_one_epoch(
     device: torch.device,
     optimizer: torch.optim.Optimizer | None = None,
     max_batches: int | None = None,
+    pos_weight: torch.Tensor | None = None
 ) -> float:
     """
     Run one full training or validation epoch.
@@ -169,8 +173,8 @@ def run_one_epoch(
     train_mode = optimizer is not None
     model.train(train_mode)
 
-    criterion = nn.BCEWithLogitsLoss()
-
+    ##criterion = nn.BCEWithLogitsLoss()
+    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight) if pos_weight is not None else nn.BCEWithLogitsLoss()
     total_loss = 0.0
     batch_count = 0
 
@@ -240,6 +244,14 @@ def main() -> None:
     train_loader = build_dataloader(TRAIN_CSV, shuffle=True)
     val_loader = build_dataloader(VAL_CSV, shuffle=False)
 
+    train_df = train_loader.dataset.df
+    pos = int(train_df["label_m1p"].sum())
+    neg = int(len(train_df) - pos)
+    pw = neg / max(pos, 1)
+    pos_weight = torch.tensor([pw], device=device)
+    print(f"pos_weight: {neg}/{pos} = {pw:.4f}")
+
+    ##pos_weight = torch.ones(len(pw))
     model = CNNBaseline(in_channels=10).to(device)
     optimizer = torch.optim.AdamW(
         model.parameters(),
@@ -263,6 +275,7 @@ def main() -> None:
                 train_loader,
                 device,
                 optimizer=optimizer,
+                pos_weight=pos_weight,
                 max_batches=None,
             )
             val_loss = run_one_epoch(
@@ -270,6 +283,7 @@ def main() -> None:
                 val_loader,
                 device,
                 optimizer=None,
+                pos_weight=pos_weight,
                 max_batches=None,
             )
 
@@ -279,12 +293,13 @@ def main() -> None:
             log_file.flush()
 
             # Always save the most recent model state.
-            save_checkpoint(CKPT_DIR / "cnn_baseline_latest.pt", model, optimizer, epoch)
-
+            ##save_checkpoint(CKPT_DIR / "cnn_baseline_latest.pt", model, optimizer, epoch)
+            save_checkpoint(CKPT_DIR / f"{RUN_NAME}_latest.pt", model, optimizer, epoch)
             # Update the best checkpoint when validation loss improves.
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
-                save_checkpoint(CKPT_DIR / "cnn_baseline_best.pt", model, optimizer, epoch)
+                ##save_checkpoint(CKPT_DIR / "cnn_baseline_best.pt", model, optimizer, epoch)
+                save_checkpoint(CKPT_DIR / f"{RUN_NAME}_best.pt", model, optimizer, epoch)
 
 
 if __name__ == "__main__":

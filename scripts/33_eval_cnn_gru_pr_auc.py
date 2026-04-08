@@ -1,3 +1,26 @@
+"""
+Evaluate the saved CNN-GRU checkpoint on validation and test splits.
+
+This script loads a saved CNN-GRU checkpoint, rebuilds the model
+architecture, evaluates it on the validation and test splits, and reports
+average BCE-with-logits loss, Average Precision (PR-AUC), and Brier score.
+
+The CNN-GRU model consumes the full sample tensor:
+    [B, 4, 10, 256, 256]
+
+Inputs:
+    - data/interim/sdobenchmark/index.parquet
+    - data/interim/sdobenchmark/splits/val.csv
+    - data/interim/sdobenchmark/splits/test.csv
+    - runs/checkpoints/<checkpoint>.pt
+
+Output:
+    - Printed device selection
+    - Printed checkpoint existence check
+    - Printed loaded checkpoint epoch
+    - Printed split-level loss and metrics
+"""
+
 from pathlib import Path
 
 import numpy as np
@@ -6,7 +29,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 from src.data.sdobenchmark_dataset import SDOBenchmarkDataset
-from src.models.cnn_baseline import CNNBaseline
+from src.models.cnn_gru import CNNGRU
 
 
 # ---------------------------------------------------------------------
@@ -16,11 +39,15 @@ from src.models.cnn_baseline import CNNBaseline
 # regardless of the current working directory.
 ROOT = Path(__file__).resolve().parents[1]
 
-# Curated index, split directory, and saved checkpoint location.
+# Curated index, split directory, and checkpoint location.
 INDEX = ROOT / "data" / "interim" / "sdobenchmark" / "index.parquet"
 SPLITS = ROOT / "data" / "interim" / "sdobenchmark" / "splits"
-##CKPT = ROOT / "runs" / "checkpoints" / "cnn_baseline_best.pt"
-CKPT = ROOT / "runs" / "checkpoints" / "cnn_baseline_posw_best.pt"
+
+# Choose the checkpoint to evaluate.
+# Example alternative:
+# CKPT = ROOT / "runs" / "checkpoints" / "cnn_gru_best.pt"
+CKPT = ROOT / "runs" / "checkpoints" / "cnn_gru_posw_best.pt"
+
 # Evaluate both validation and test splits for comparison.
 SPLIT_NAMES = ["val", "test"]
 
@@ -29,6 +56,11 @@ BATCH_SIZE = 8
 SHUFFLE = False
 NUM_WORKERS = 0
 PIN_MEMORY = True
+
+# CNN-GRU model configuration.
+IN_CHANNELS = 10
+FEATURE_DIM = 128
+HIDDEN_DIM = 128
 
 
 def average_precision(y_true: np.ndarray, y_score: np.ndarray) -> float:
@@ -83,21 +115,29 @@ def build_dataloader(split_name: str) -> DataLoader:
     )
 
 
-def build_model(device: torch.device) -> nn.Module:
+def build_model(device: torch.device) -> CNNGRU:
     """
-    Build the CNN baseline model for evaluation.
+    Build the CNN-GRU model for evaluation.
 
     Args:
         device (torch.device): Target device for model execution.
 
     Returns:
-        nn.Module: CNN baseline moved to the requested device.
+        CNNGRU: Model moved to the requested device.
     """
-    model = CNNBaseline(in_channels=10)
+    model = CNNGRU(
+        in_channels=IN_CHANNELS,
+        feat_dim=FEATURE_DIM,
+        hidden_dim=HIDDEN_DIM,
+    )
     return model.to(device)
 
 
-def load_checkpoint(model: nn.Module, ckpt_path: Path, device: torch.device) -> dict:
+def load_checkpoint(
+    model: nn.Module,
+    ckpt_path: Path,
+    device: torch.device,
+) -> dict:
     """
     Load model weights from a saved checkpoint.
 
@@ -123,8 +163,8 @@ def evaluate_split(
     """
     Evaluate one split and compute basic classification metrics.
 
-    The CNN baseline uses only the last timestep from each sample:
-        [B, 4, 10, 256, 256] -> [B, 10, 256, 256]
+    The CNN-GRU model consumes the full input tensor:
+        [B, 4, 10, 256, 256]
 
     Metrics reported:
         - average BCE-with-logits loss
@@ -150,15 +190,14 @@ def evaluate_split(
     n_batches = 0
 
     for x, y in dataloader:
-        # The CNN baseline consumes only the most recent frame.
-        x = x[:, -1].to(device, non_blocking=True)   # [B, 10, 256, 256]
-        y = y.float().to(device).view(-1, 1)         # [B, 1]
+        x = x.to(device, non_blocking=True)      # [B, 4, 10, 256, 256]
+        y = y.float().to(device).view(-1, 1)     # [B, 1]
 
         logits = model(x)
         loss = criterion(logits, y)
 
-        probs = torch.sigmoid(logits).detach().cpu().numpy().reshape(-1)
-        y_cpu = y.detach().cpu().numpy().reshape(-1)
+        probs = torch.sigmoid(logits).cpu().numpy().reshape(-1)
+        y_cpu = y.cpu().numpy().reshape(-1)
 
         all_probs.append(probs)
         all_targets.append(y_cpu)
@@ -206,7 +245,7 @@ def print_split_metrics(split_name: str, stats: dict) -> None:
 
 def main() -> None:
     """
-    Load the best saved checkpoint and evaluate it on validation and test.
+    Load the saved checkpoint and evaluate it on validation and test.
     """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("device:", device)
